@@ -1,9 +1,11 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 module RuleEngine where
 
 import qualified Data.Map.Strict as Map
 import Data.Text (Text)
 import Types
+import Data.List (intersperse) 
 
 
 type Board = Map.Map Position Piece
@@ -81,3 +83,56 @@ getValidMoves rules size board fromPos =
           Just targetPiece -> pColor targetPiece == pColor ourPiece
       in
         isOnBoard && (not isFriendlyOccupied)  
+
+renderBoard :: BoardSize -> Board -> String
+renderBoard (BoardSize {..}) board =
+  let
+    -- Helper to get char for a single cell
+    cellToChar :: Position -> Char
+    cellToChar pos = case Map.lookup pos board of
+      Nothing -> '.'
+      Just p  -> pieceToChar p
+    
+    -- Helper to get char for a piece
+    pieceToChar :: Piece -> Char
+    pieceToChar (Piece "SimplePawn" White) = 'P'
+    pieceToChar (Piece "SimplePawn" Black) = 'p'
+    pieceToChar (Piece "SimpleKing" White) = 'K'
+    pieceToChar (Piece "SimpleKing" Black) = 'k'
+    pieceToChar _ = '?' -- Fallback for unknown pieces
+
+    -- Create a list of all rows (as Strings)
+    -- We print from the top row (rows-1) down to 0 for standard board layout
+    rowsAsStrings = [ [cellToChar (Pos r c) | c <- [0..cols-1]] | r <- [rows-1, rows-2 .. 0] ]
+    
+    -- Add row numbers and spaces for readability
+    -- e.g., "7 | p p p . . ."
+    addRowNum r str = show r ++ " | " ++ (intersperse ' ' str)
+    numberedRows = zipWith addRowNum [rows-1, rows-2 .. 0] rowsAsStrings
+
+    -- Create the column header
+    -- e.g., "  | 0 1 2 3 4 5"
+    colHeader = "  | " ++ (intersperse ' ' [ (['0'..] !!) c | c <- [0..cols-1] ])
+    separator = "  --" ++ replicate (cols * 2) '-'
+
+  in
+    -- Combine all lines into one string, separated by newlines
+    unlines (numberedRows ++ [separator, colHeader])
+
+-- | --- NEW FUNCTION ---
+-- | Checks if a King of a given color is on the board.
+-- | Returns True if king exists, False otherwise.
+findKing :: Board -> Color -> Bool
+findKing board kingColor =
+  let
+    -- The check function for the fold
+    -- 'found' is the accumulator (True/False)
+    -- 'piece' is the current piece
+    checkKing piece found
+      | found = True -- If already found, stop checking
+      | pName piece == "SimpleKing" && pColor piece == kingColor = True
+      | otherwise = False
+  in
+    -- Fold over all pieces. Start with 'False' (not found)
+    -- 'checkKing' will be called on each piece
+    Map.foldr checkKing False board

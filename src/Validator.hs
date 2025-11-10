@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Validator
   ( validateRuleSet
@@ -27,6 +28,7 @@ validateRuleSet rs = do
   validateFormationCollisions formationEntries
   validateStepMoves pieceDefs
   validateFormationArea boardSize formationEntries
+  validateKingPresence formationEntries
   
   -- if all checks pass, return the original RuleSet
   return rs
@@ -111,7 +113,7 @@ validateStepMoves pieceDefs =
     -- Run checkPiece on all defined pieces
     mapM_ checkPiece pieceDefs
 
--- Check 4
+-- Check 5
 validateFormationArea :: BoardSize -> [FormationEntry] -> ValidationResult
 validateFormationArea boardSize formation =
   let
@@ -130,3 +132,18 @@ validateFormationArea boardSize formation =
                  "All 'formation' pieces must be in a row < " ++ show maxAllowedRow ++ "."
   in
     mapM_ check formation
+
+-- Check 6
+validateKingPresence :: [FormationEntry] -> ValidationResult
+validateKingPresence formation =
+  let
+    -- Filter the list to find only "SimpleKing" entries
+    kingEntries = filter (\e -> piece e == "SimpleKing") formation
+    
+    -- Check the count
+    kingCount = length kingEntries
+  in
+    case kingCount of
+      1 -> Right () -- Exactly one king, this is correct.
+      0 -> Left "Validation Error: No 'SimpleKing' found in 'formation' list. One is required."
+      _ -> Left $ "Validation Error: Found " ++ show kingCount ++ " 'SimpleKing' entries in 'formation'. Exactly one is required."

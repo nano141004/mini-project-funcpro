@@ -10,13 +10,15 @@ module Types
     FormationEntry(..),
     RuleSetV1(..),
     Color(..),
-    Piece(..)
+    Piece(..),
+    GameState(..)
   ) where
 
 import GHC.Generics (Generic)
 import Data.Aeson (FromJSON(..), withArray)
 import Data.Vector (toList)
 import Data.Text (Text)
+import qualified Data.Map.Strict as Map
 
 
 data Position = Pos { r :: Int, c :: Int }
@@ -56,3 +58,8 @@ data Piece = Piece
   { pName :: Text
   , pColor :: Color
   } deriving (Show, Eq, Ord)
+
+data GameState = GameState
+  { gsBoard  :: Map.Map Position Piece
+  , gsPlayer :: Color
+  } deriving (Show)
