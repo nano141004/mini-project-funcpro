@@ -1,0 +1,69 @@
+# (New Week 4 format)
+board_size:
+  rows: 5
+  cols: 5
+
+pieces:
+  - name: SimplePawn
+    moves:
+      - type: Step 
+        offset: [1, 0]
+  - name: SimpleKing
+    moves:
+      - type: Step
+        offset: [0, 1]
+      - type: Step
+        offset: [1, 0]
+      - type: Step
+        offset: [0, -1]
+      - type: Step
+        offset: [-1, 0]
+      - type: Step
+        offset: [-1, 1]
+      - type: Step
+        offset: [1, 1]
+      - type: Step
+        offset: [1, -1]
+      - type: Step
+        offset: [-1, -1]
+  
+  # --- NEW PIECES ---
+  - name: Knight
+    moves:
+      - type: Jump 
+        offset: [2, 1]
+      - type: Jump
+        offset: [2, -1]
+      - type: Jump
+        offset: [-2, 1]
+      - type: Jump
+        offset: [-2, 1]
+      - type: Jump 
+        offset: [1, 2]
+      - type: Jump
+        offset: [1, -2]
+      - type: Jump
+        offset: [-1, 2]
+      - type: Jump
+        offset: [-1, -2]
+        
+  - name: Rook
+    moves:
+      - type: Slide 
+        direction: [1, 1]
+      - type: Slide
+        direction: [0, 1]
+      - type: Slide
+        direction: [-1, 0]
+      - type: Slide
+        direction: [0, -1]
+
+formation:
+  - piece: SimplePawn
+    position: [1, 0]
+  - piece: Knight
+    position: [0, 1]
+  - piece: Rook
+    position: [0, 0]
+  - piece: SimpleKing
+    position: [0, 4]
