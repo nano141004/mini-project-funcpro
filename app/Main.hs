@@ -14,7 +14,7 @@ import Text.Read (readMaybe)
 main :: IO ()
 main = do
   putStrLn "--- CustomChessKell (Iteration 1) ---"
-  eRuleSet <- Yaml.decodeFileEither "rules_w2.yaml"
+  eRuleSet <- Yaml.decodeFileEither "rules_w4.yaml"
 
   -- 2. VALIDATE the raw RuleSet
   let validatedRuleSet = case eRuleSet of
