@@ -32,6 +32,8 @@ validateRuleSet rs = do
 
   validateSlideDirections pieceDefs -- <-- ADDED NEW cases
   validateJumpOffsets pieceDefs -- <-- ADDED NEW cases
+
+  validateStepOffsets pieceDefs -- <-- ADDED NEW cases
   
   -- if all checks pass, return the original RuleSet
   return rs
@@ -182,5 +184,22 @@ validateJumpOffsets pieceDefs =
                   "' has a Jump with an invalid offset " ++ show (Pos dr dc) ++
                   ". Jumps must be more than 1 square."
     checkMove _ _ = Right () -- Don't check Step or Slide
+  in
+    mapM_ checkPiece pieceDefs
+
+-- new check
+validateStepOffsets :: [PieceDef] -> ValidationResult
+validateStepOffsets pieceDefs =
+  let
+    checkPiece piece = mapM_ (checkMove (name piece)) (moves piece)
+    
+    checkMove pieceName (Step (Pos dr dc)) =
+      -- A step MUST be exactly 1 square away
+      let isStepVec = max (abs dr) (abs dc) == 1
+      in when (not isStepVec) $
+           Left $ "Validation Error: Piece '" ++ T.unpack pieceName ++
+                  "' has a Step with an invalid offset " ++ show (Pos dr dc) ++
+                  ". Step offsets must be exactly 1 square."
+    checkMove _ _ = Right () -- Don't check Jump or Slide
   in
     mapM_ checkPiece pieceDefs
