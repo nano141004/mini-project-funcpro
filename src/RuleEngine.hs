@@ -9,13 +9,14 @@ import Data.List (intersperse)
 
 
 type Board = Map.Map Position Piece
-type RuleMap = Map.Map Text [Position] -- e.g., "SimplePawn" -> [Pos 1 0]
+type RuleMap = Map.Map Text [MoveRule] -- updated from position to moverule
 
 
 add :: Position -> Position -> Position
 (Pos r1 c1) `add` (Pos r2 c2) = Pos (r1 + r2) (c1 + c2)
 
-buildRuleMap :: [PieceDefV1] -> RuleMap
+
+buildRuleMap :: [PieceDef] -> RuleMap
 buildRuleMap defs = Map.fromList $ map (\d -> (name d, moves d)) defs
 
 
@@ -54,35 +55,66 @@ isPosOnBoard (BoardSize {..}) (Pos {..}) =
   r >= 0 && r < rows && c >= 0 && c < cols
 
 
--- -- current function handles:
--- - check whether the piece exist at given position
--- - handle movement for 
+-- update (refactor)
 getValidMoves :: RuleMap -> BoardSize -> Board -> Position -> [Position]
 getValidMoves rules size board fromPos =
   case Map.lookup fromPos board of
-    Nothing -> [] -- No piece at this position
+    Nothing -> [] -- No piece
     Just piece ->
       let
-        pieceName = pName piece
-        moveOffsets = Map.findWithDefault [] pieceName rules
-        
-        -- to determine the direction
+        -- Get the list of rules for this piece
+        moveRules = Map.findWithDefault [] (pName piece) rules
         playerSign = if pColor piece == White then 1 else -1
         
-        applyOffset (Pos dr dc) = Pos (r fromPos + (dr * playerSign)) (c fromPos + dc)
-        potentialPositions = map applyOffset moveOffsets
-
-      in filter (isValidMove piece) potentialPositions
+        -- Apply the player sign to a move vector
+        applySign (Pos dr dc) = Pos (dr * playerSign) dc
+        
+        -- 'concatMap' runs the interpreter for each rule and joins the lists
+        evalMove rule = case rule of
+          Step offset  -> evalStep (applySign offset)
+          Jump offset  -> evalJump (applySign offset)
+          Slide direction -> evalSlide (applySign direction)
+          
+      in concatMap evalMove moveRules
   where
-    isValidMove :: Piece -> Position -> Bool
-    isValidMove ourPiece toPos =
+    -- Helper: Is a square valid to land on? (On board & not friendly)
+    isTargetValid toPos =
+      isPosOnBoard size toPos &&
+      case Map.lookup toPos board of
+        Nothing -> True -- Empty is fine
+        Just target -> pColor target /= pColor (board Map.! fromPos) -- Enemy is fine
+
+    -- --- INTERPRETER LOGIC ---
+    
+    -- 1. Evaluates a Step
+    evalStep offset =
+      let toPos = fromPos `add` offset
+      in if isTargetValid toPos then [toPos] else []
+
+    -- 2. Evaluates a Jump
+    --    (Identical to Step, as our v1 'isValidMove' only checks the destination)
+    evalJump offset =
+      let toPos = fromPos `add` offset
+      in if isTargetValid toPos then [toPos] else []
+
+    -- 3. Evaluates a Slide (The new complex logic)
+    evalSlide direction =
+      -- This is a recursive helper that "walks" in one direction
       let
-        isOnBoard = isPosOnBoard size toPos
-        isFriendlyOccupied = case Map.lookup toPos board of
-          Nothing -> False
-          Just targetPiece -> pColor targetPiece == pColor ourPiece
+        walk (nextPos:remaining)
+          | not (isPosOnBoard size nextPos) = [] -- Hit edge of board
+          | otherwise = case Map.lookup nextPos board of
+              Nothing -> nextPos : walk remaining -- Empty square, add to moves and continue
+              Just p -> if pColor p == pColor (board Map.! fromPos)
+                        then [] -- Hit friendly piece, stop.
+                        else [nextPos] -- Hit enemy piece, add capture and stop.
       in
-        isOnBoard && (not isFriendlyOccupied)  
+        -- Create the "infinite" list of squares in this direction
+        -- e.g., [Pos 1 0, Pos 2 0, Pos 3 0, ...]
+        let path = tail [ fromPos `add` (direction `scale` n) | n <- [0..] ]
+            scale (Pos dr dc) n = Pos (dr*n) (dc*n)
+        in
+          walk path 
 
 renderBoard :: BoardSize -> Board -> String
 renderBoard (BoardSize {..}) board =
@@ -99,6 +131,13 @@ renderBoard (BoardSize {..}) board =
     pieceToChar (Piece "SimplePawn" Black) = 'p'
     pieceToChar (Piece "SimpleKing" White) = 'K'
     pieceToChar (Piece "SimpleKing" Black) = 'k'
+
+    -- --- ADDED THESE NEW CASES ---
+    pieceToChar (Piece "Knight" White)     = 'N' -- 'N' for kNight
+    pieceToChar (Piece "Knight" Black)     = 'n'
+    pieceToChar (Piece "Rook" White)       = 'R'
+    pieceToChar (Piece "Rook" Black)       = 'r'
+
     pieceToChar _ = '?' -- Fallback for unknown pieces
 
     -- Create a list of all rows (as Strings)
