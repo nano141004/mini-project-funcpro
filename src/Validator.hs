@@ -16,25 +16,28 @@ import RuleEngine (isPosOnBoard)
 type ValidationResult = Either String ()
 
 
-validateRuleSet :: RuleSetV1 -> Either String RuleSetV1
+validateRuleSet :: RuleSet -> Either String RuleSet
 validateRuleSet rs = do
   let pieceDefs = pieces rs
   let formationEntries = formation rs
   let boardSize = board_size rs
 
-  -- 5 cases for now, hasnt covered all the cases
+  -- current covered cases
   validatePieceNames pieceDefs formationEntries
   validateFormationPositions boardSize formationEntries
   validateFormationCollisions formationEntries
-  validateStepMoves pieceDefs
+  -- validateStepMoves pieceDefs  -- removed for now
   validateFormationArea boardSize formationEntries
-  validateKingPresence formationEntries
+  validateKingPresence pieceDefs formationEntries -- adjustment
+
+  validateSlideDirections pieceDefs -- <-- ADDED NEW cases
+  validateJumpOffsets pieceDefs -- <-- ADDED NEW cases
   
   -- if all checks pass, return the original RuleSet
   return rs
 
 -- | Check 1: Ensure all pieces in 'formation' are defined in 'pieces'.
-validatePieceNames :: [PieceDefV1] -> [FormationEntry] -> ValidationResult
+validatePieceNames :: [PieceDef] -> [FormationEntry] -> ValidationResult
 validatePieceNames pieceDefs formation =
   let
     -- A Set of all valid piece names (e.g., {"SimplePawn", "SimpleKing"})
@@ -88,30 +91,30 @@ validateFormationCollisions formation =
     foldr check initial formation >> return () -- '>> return ()' discards the Set and returns 'Right ()' on success
 
 -- Check 4
-validateStepMoves :: [PieceDefV1] -> ValidationResult
-validateStepMoves pieceDefs =
-  let
-    -- Check a single piece definition
-    checkPiece piece =
-      let pieceName = name piece
+-- validateStepMoves :: [PieceDef] -> ValidationResult
+-- validateStepMoves pieceDefs =
+--   let
+--     -- Check a single piece definition
+--     checkPiece piece =
+--       let pieceName = name piece
           
-          -- Check a single move offset (e.g., [2, 0])
-          checkMove moveOffset =
-            let 
-                (Pos dr dc) = moveOffset
-                -- A move is a "step" if its largest component (row or col) is 1
-                isStepMove = max (abs dr) (abs dc) == 1
-            in
-              when (not isStepMove) $
-                Left $ "Validation Error: Piece '" ++ T.unpack pieceName ++
-                       "' has an invalid move " ++ show moveOffset ++
-                       ". Iteration 1 only supports single-step moves (max 1 square in any direction)."
-      in
-        -- Run checkMove on all of the piece's moves
-        mapM_ checkMove (moves piece)
-  in
-    -- Run checkPiece on all defined pieces
-    mapM_ checkPiece pieceDefs
+--           -- Check a single move offset (e.g., [2, 0])
+--           checkMove moveOffset =
+--             let 
+--                 (Pos dr dc) = moveOffset
+--                 -- A move is a "step" if its largest component (row or col) is 1
+--                 isStepMove = max (abs dr) (abs dc) == 1
+--             in
+--               when (not isStepMove) $
+--                 Left $ "Validation Error: Piece '" ++ T.unpack pieceName ++
+--                        "' has an invalid move " ++ show moveOffset ++
+--                        ". Iteration 1 only supports single-step moves (max 1 square in any direction)."
+--       in
+--         -- Run checkMove on all of the piece's moves
+--         mapM_ checkMove (moves piece)
+--   in
+--     -- Run checkPiece on all defined pieces
+--     mapM_ checkPiece pieceDefs
 
 -- Check 5
 validateFormationArea :: BoardSize -> [FormationEntry] -> ValidationResult
@@ -133,17 +136,51 @@ validateFormationArea boardSize formation =
   in
     mapM_ check formation
 
--- Check 6
-validateKingPresence :: [FormationEntry] -> ValidationResult
-validateKingPresence formation =
+-- adjustment
+validateKingPresence :: [PieceDef] -> [FormationEntry] -> ValidationResult
+validateKingPresence pieceDefs formation =
   let
-    -- Filter the list to find only "SimpleKing" entries
+    -- 1. Check that "SimpleKing" is defined in the 'pieces' list
+    kingDefined = any (\p -> name p == "SimpleKing") pieceDefs
+    -- 2. Check that "SimpleKing" is used in the 'formation' list
     kingEntries = filter (\e -> piece e == "SimpleKing") formation
-    
-    -- Check the count
     kingCount = length kingEntries
   in
-    case kingCount of
+    if not kingDefined then
+      Left "Validation Error: A piece named 'SimpleKing' must be defined in the 'pieces' list."
+    else case kingCount of
       1 -> Right () -- Exactly one king, this is correct.
       0 -> Left "Validation Error: No 'SimpleKing' found in 'formation' list. One is required."
       _ -> Left $ "Validation Error: Found " ++ show kingCount ++ " 'SimpleKing' entries in 'formation'. Exactly one is required."
+
+validateSlideDirections :: [PieceDef] -> ValidationResult
+validateSlideDirections pieceDefs =
+  let
+    checkPiece piece = mapM_ (checkMove (name piece)) (moves piece)
+    
+    checkMove pieceName (Slide (Pos dr dc)) =
+      let isSlideVec = max (abs dr) (abs dc) == 1
+      in when (not isSlideVec) $
+           Left $ "Validation Error: Piece '" ++ T.unpack pieceName ++
+                  "' has a Slide with an invalid direction " ++ show (Pos dr dc) ++
+                  ". Slide directions must be 1-step vectors."
+    checkMove _ _ = Right () -- Don't check Step or Jump
+  in
+    mapM_ checkPiece pieceDefs
+
+-- --- NEW CHECK 7 ---
+validateJumpOffsets :: [PieceDef] -> ValidationResult
+validateJumpOffsets pieceDefs =
+  let
+    checkPiece piece = mapM_ (checkMove (name piece)) (moves piece)
+    
+    checkMove pieceName (Jump (Pos dr dc)) =
+      -- A jump MUST be more than 1 square away
+      let isJumpVec = max (abs dr) (abs dc) > 1
+      in when (not isJumpVec) $
+           Left $ "Validation Error: Piece '" ++ T.unpack pieceName ++
+                  "' has a Jump with an invalid offset " ++ show (Pos dr dc) ++
+                  ". Jumps must be more than 1 square."
+    checkMove _ _ = Right () -- Don't check Step or Slide
+  in
+    mapM_ checkPiece pieceDefs
