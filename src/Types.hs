@@ -6,16 +6,22 @@ module Types
   ( 
     Position(..),
     BoardSize(..),
-    PieceDefV1(..),
+
+    PieceDef(..),
+
     FormationEntry(..),
-    RuleSetV1(..),
+
+    RuleSet(..),
+
     Color(..),
     Piece(..),
-    GameState(..)
+    GameState(..),
+    
+    MoveRule(..)
   ) where
 
 import GHC.Generics (Generic)
-import Data.Aeson (FromJSON(..), withArray)
+import Data.Aeson (FromJSON(..), withObject, (.:), withArray)
 import Data.Vector (toList)
 import Data.Text (Text)
 import qualified Data.Map.Strict as Map
@@ -32,10 +38,10 @@ instance FromJSON Position where
 data BoardSize = BoardSize { rows :: Int, cols :: Int }
   deriving (Show, Generic, FromJSON)
 
--- piece movement def (v1 - simple ver)
-data PieceDefV1 = PieceDefV1
+-- piece movement def (UPDATED)
+data PieceDef = PieceDef
   { name :: Text
-  , moves :: [Position] 
+  , moves :: [MoveRule] 
   } deriving (Show, Generic, FromJSON)
 
 -- pieces starting formation
@@ -44,10 +50,10 @@ data FormationEntry = FormationEntry
   , position :: Position 
   } deriving (Show, Generic, FromJSON)
 
--- entire rule set  (v1)
-data RuleSetV1 = RuleSetV1
+-- entire rule set (UPDATED)
+data RuleSet = RuleSet
   { board_size :: BoardSize
-  , pieces :: [PieceDefV1]
+  , pieces :: [PieceDef]
   , formation :: [FormationEntry]
   } deriving (Show, Generic, FromJSON)
 
@@ -63,3 +69,21 @@ data GameState = GameState
   { gsBoard  :: Map.Map Position Piece
   , gsPlayer :: Color
   } deriving (Show)
+
+-- new rule
+data MoveRule
+  = Step Position  -- A single step to an adjacent square
+  | Jump Position  -- A single leap to a non-adjacent square
+  | Slide Position -- A repeated slide in one direction (e.g., [1,0] or [1,1])
+  deriving (Show, Generic)
+
+-- new custom parser the MoveRule AST
+instance FromJSON MoveRule where
+  parseJSON = withObject "MoveRule" $ \v -> do
+    -- Get the "type" field from the YAML object
+    ruleType <- v .: "type"
+    case (ruleType :: String) of
+      "Step" -> Step <$> v .: "offset"
+      "Jump" -> Jump <$> v .: "offset"
+      "Slide" -> Slide <$> v .: "direction"
+      _ -> fail "Unknown move rule type"
