@@ -50,7 +50,7 @@ pieces:
   - name: Rook
     moves:
       - type: Slide 
-        direction: [1, 1]
+        direction: [1, 0]
       - type: Slide
         direction: [0, 1]
       - type: Slide
@@ -58,12 +58,26 @@ pieces:
       - type: Slide
         direction: [0, -1]
 
+  - name: Bishop
+    moves:
+      - type: Slide 
+        direction: [1, 1]
+      - type: Slide
+        direction: [1, -1]
+      - type: Slide
+        direction: [-1, 1]
+      - type: Slide
+        direction: [-1, -1]
+
+
 formation:
   - piece: SimplePawn
     position: [1, 0]
   - piece: Knight
     position: [0, 1]
   - piece: Rook
-    position: [0, 0]
+    position: [0, 2]
   - piece: SimpleKing
     position: [0, 4]
+  - piece: Bishop
+    position: [1, 4]

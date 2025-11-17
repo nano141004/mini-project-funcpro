@@ -13,7 +13,7 @@ import Text.Read (readMaybe)
 
 main :: IO ()
 main = do
-  putStrLn "--- CustomChessKell (Iteration 1) ---"
+  putStrLn "--- CustomChessKell (Iteration 2) ---"
   eRuleSet <- Yaml.decodeFileEither "rules_w4.yaml"
 
   -- 2. VALIDATE the raw RuleSet

@@ -138,6 +138,9 @@ renderBoard (BoardSize {..}) board =
     pieceToChar (Piece "Rook" White)       = 'R'
     pieceToChar (Piece "Rook" Black)       = 'r'
 
+    pieceToChar (Piece "Bishop" White)       = 'B'
+    pieceToChar (Piece "Bishop" Black)       = 'b'
+
     pieceToChar _ = '?' -- Fallback for unknown pieces
 
     -- Create a list of all rows (as Strings)
