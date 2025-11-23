@@ -1,14 +1,18 @@
-# (New Week 4 format)
 board_size:
   rows: 5
   cols: 5
 
 pieces:
   - name: SimplePawn
+    symbol_white: 'P'    # Capital for White
+    symbol_black: 'p'    # Lowercase for Black
     moves:
       - type: Step 
         offset: [1, 0]
+
   - name: SimpleKing
+    symbol_white: '♔'    # Unicode White King
+    symbol_black: '♚'    # Unicode Black King
     moves:
       - type: Step
         offset: [0, 1]
@@ -27,8 +31,9 @@ pieces:
       - type: Step
         offset: [-1, -1]
   
-  # --- NEW PIECES ---
   - name: Knight
+    symbol_white: '♘'
+    symbol_black: '♞'
     moves:
       - type: Jump 
         offset: [2, 1]
@@ -37,8 +42,8 @@ pieces:
       - type: Jump
         offset: [-2, 1]
       - type: Jump
-        offset: [-2, 1]
-      - type: Jump 
+        offset: [-2, -1]
+      - type: Jump
         offset: [1, 2]
       - type: Jump
         offset: [1, -2]
@@ -48,6 +53,8 @@ pieces:
         offset: [-1, -2]
         
   - name: Rook
+    symbol_white: '♖'
+    symbol_black: '♜'
     moves:
       - type: Slide 
         direction: [1, 0]
@@ -58,26 +65,12 @@ pieces:
       - type: Slide
         direction: [0, -1]
 
-  - name: Bishop
-    moves:
-      - type: Slide 
-        direction: [1, 1]
-      - type: Slide
-        direction: [1, -1]
-      - type: Slide
-        direction: [-1, 1]
-      - type: Slide
-        direction: [-1, -1]
-
-
 formation:
   - piece: SimplePawn
     position: [1, 0]
   - piece: Knight
     position: [0, 1]
   - piece: Rook
-    position: [0, 2]
+    position: [0, 0]
   - piece: SimpleKing
     position: [0, 4]
-  - piece: Bishop
-    position: [1, 4]

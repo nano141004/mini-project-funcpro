@@ -11,7 +11,8 @@ import qualified Data.Text as T
 import Data.Maybe (isNothing)
 import Control.Monad (when)
 import Types
-import RuleEngine (isPosOnBoard) 
+import RuleEngine (isPosOnBoard, buildRuleMap, buildInitialBoard, isKingInCheck) 
+import Data.List (group, sort)
 
 type ValidationResult = Either String ()
 
@@ -34,6 +35,10 @@ validateRuleSet rs = do
   validateJumpOffsets pieceDefs -- <-- ADDED NEW cases
 
   validateStepOffsets pieceDefs -- <-- ADDED NEW cases
+
+  validateInitialStates boardSize pieceDefs formationEntries
+
+  validateUniqueSymbols pieceDefs
   
   -- if all checks pass, return the original RuleSet
   return rs
@@ -203,3 +208,37 @@ validateStepOffsets pieceDefs =
     checkMove _ _ = Right () -- Don't check Jump or Slide
   in
     mapM_ checkPiece pieceDefs
+
+-- | Check 9: Ensure neither side starts in Check.
+validateInitialStates :: BoardSize -> [PieceDef] -> [FormationEntry] -> ValidationResult
+validateInitialStates size pieces formation = do
+  -- 1. Boot up the engine logic temporarily
+  let rules = buildRuleMap pieces
+
+  let board = buildInitialBoard size formation rules
+  
+  -- 2. Check White (Fail-Early)
+  when (isKingInCheck rules size board White) $
+    Left "Validation Error: White King starts in Check. The formation is invalid."
+
+  -- 3. Check Black (Fail-Early)
+  when (isKingInCheck rules size board Black) $
+    Left "Validation Error: Black King starts in Check. The formation is invalid."
+    
+  return ()
+
+-- | Check 10: Ensure all defined symbols (white and black) are unique across all pieces.
+validateUniqueSymbols :: [PieceDef] -> ValidationResult
+validateUniqueSymbols pieceDefs =
+  let
+    -- 1. Collect ALL symbols from ALL pieces into one list
+    allSymbols = concatMap (\p -> [symbol_white p, symbol_black p]) pieceDefs
+    
+    -- 2. Find duplicates
+    -- Sort the list, group identical elements, filter groups with length > 1
+    duplicates = [ x | (x:xs) <- group (sort allSymbols), not (null xs) ]
+  in
+    if null duplicates
+    then Right ()
+    else Left $ "Validation Error: Duplicate symbols detected in rules.yaml: " ++ show duplicates ++ 
+                ". All symbols (White and Black) must be unique to ensure the board is readable."

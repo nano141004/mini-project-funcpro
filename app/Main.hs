@@ -7,12 +7,15 @@ import Types
 import RuleEngine
 import Validator (validateRuleSet) 
 import System.Exit (exitFailure)   
-import System.IO (hFlush, stdout) 
+import System.IO (hFlush, stdout, hSetEncoding, utf8)
 import Text.Read (readMaybe)      
+import Data.Char (ord, toLower, isDigit, isAlpha)
 
 
 main :: IO ()
 main = do
+  hSetEncoding stdout utf8
+
   putStrLn "--- CustomChessKell (Iteration 2) ---"
   eRuleSet <- Yaml.decodeFileEither "rules_w4.yaml"
 
@@ -37,7 +40,7 @@ main = do
       -- 4. Build initial game state
       let rules = buildRuleMap (pieces ruleSet)
       let boardSize = board_size ruleSet
-      let initialBoard = buildInitialBoard boardSize (formation ruleSet)
+      let initialBoard = buildInitialBoard boardSize (formation ruleSet) rules
       let initialState = GameState { gsBoard = initialBoard, gsPlayer = White }
 
       -- 5. Print initial board and start the loop
@@ -52,7 +55,7 @@ gameLoop rules size state = do
 
   -- 1. Prompt user for input
   putStrLn $ "--- Turn: " ++ show player ++ " ---"
-  putStr "Enter move (e.g., '1,0 2,0' for row,col row,col): "
+  putStr "Enter move (e.g., 'a2 a3'): "
   hFlush stdout -- Ensure the prompt appears before input
   line <- getLine
 
@@ -63,8 +66,9 @@ gameLoop rules size state = do
       gameLoop rules size state -- Loop again with same state
     
     Right (fromPos, toPos) -> do
-      -- 3. Check if the move is legal
-      let validMoves = getValidMoves rules size board fromPos
+      -- 3. Check if the move is legal and "safe"
+      -- let validMoves = getValidMoves rules size board fromPos
+      let validMoves = getSafeMoves rules size board fromPos
       
       -- Check that the piece being moved belongs to the current player
       let pieceOwner = case Map.lookup fromPos board of
@@ -101,23 +105,35 @@ gameLoop rules size state = do
         gameLoop rules size state -- Loop again
 
 
--- user input
+-- Parses "a2 a3" -> (Pos, Pos)
 parseMove :: String -> Either String (Position, Position)
 parseMove input =
   case words input of
     [fromStr, toStr] ->
-      case (parsePos fromStr, parsePos toStr) of
+      case (parseChessPos fromStr, parseChessPos toStr) of
         (Right f, Right t) -> Right (f, t)
-        (Left err, _) -> Left $ "Invalid 'from' position: " ++ err
-        (_, Left err) -> Left $ "Invalid 'to' position: " ++ err
-    _ -> Left "Invalid input. Expected two positions (e.g., '1,0 2,0')."
+        (Left err, _) -> Left $ "Invalid 'from' square: " ++ err
+        (_, Left err) -> Left $ "Invalid 'to' square: " ++ err
+    _ -> Left "Invalid format. Use algebraic notation (e.g., 'a2 a3')."
 
--- parse pos from user input
-parsePos :: String -> Either String Position
-parsePos str =
-  case span (/= ',') str of
-    (rStr, ',':cStr) ->
-      case (readMaybe rStr, readMaybe cStr) of
-        (Just rInt, Just cInt) -> Right (Pos rInt cInt)
-        _ -> Left $ "'" ++ str ++ "' is not in 'row,col' number format."
-    _ -> Left $ "'" ++ str ++ "' is not in 'row,col' format."
+-- Parses "e2" -> Pos {r=1, c=4}
+parseChessPos :: String -> Either String Position
+parseChessPos s
+  | length s < 2 = Left "Coordinate too short."
+  | otherwise =
+      let
+        colChar = toLower (head s) -- 'e'
+        rowStr  = tail s           -- "2"
+      in
+        if not (isAlpha colChar) 
+          then Left "Column must be a letter (a, b, c...)."
+          else if not (all isDigit rowStr)
+            then Left "Row must be a number (1, 2, 3...)."
+            else
+              let
+                -- Convert 'a' -> 0, 'b' -> 1
+                col = ord colChar - ord 'a'
+                -- Convert "1" -> 0, "2" -> 1
+                row = (read rowStr :: Int) - 1
+              in
+                Right (Pos row col)

@@ -42,6 +42,8 @@ data BoardSize = BoardSize { rows :: Int, cols :: Int }
 data PieceDef = PieceDef
   { name :: Text
   , moves :: [MoveRule] 
+  , symbol_white :: Char 
+  , symbol_black :: Char 
   } deriving (Show, Generic, FromJSON)
 
 -- pieces starting formation
@@ -63,6 +65,7 @@ data Color = White | Black
 data Piece = Piece
   { pName :: Text
   , pColor :: Color
+  , pSymbol :: Char
   } deriving (Show, Eq, Ord)
 
 data GameState = GameState
