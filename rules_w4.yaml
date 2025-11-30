@@ -3,14 +3,14 @@ board_size:
   cols: 5
 
 pieces:
-  - name: SimplePawn
-    symbol_white: 'P'    # Capital for White
-    symbol_black: 'p'    # Lowercase for Black
+  - name: Pawn
+    symbol_white: '♙'    
+    symbol_black: '♟'    
     moves:
       - type: Step 
         offset: [1, 0]
 
-  - name: SimpleKing
+  - name: King
     symbol_white: '♔'    # Unicode White King
     symbol_black: '♚'    # Unicode Black King
     moves:
@@ -65,12 +65,48 @@ pieces:
       - type: Slide
         direction: [0, -1]
 
+  - name: Bishop
+    symbol_white: '♗'
+    symbol_black: '♝'
+    moves:
+      - type: Slide 
+        direction: [1, 1]
+      - type: Slide
+        direction: [1, -1]
+      - type: Slide
+        direction: [-1, 1]
+      - type: Slide
+        direction: [-1, -1]
+
+  - name: Queen
+    symbol_white: '♕'
+    symbol_black: '♛'
+    moves:
+      - type: Slide 
+        direction: [1, 1]
+      - type: Slide
+        direction: [1, -1]
+      - type: Slide
+        direction: [-1, 1]
+      - type: Slide
+        direction: [-1, -1]
+      - type: Slide 
+        direction: [1, 0]
+      - type: Slide
+        direction: [0, 1]
+      - type: Slide
+        direction: [-1, 0]
+      - type: Slide
+        direction: [0, -1]
+
 formation:
-  - piece: SimplePawn
+  - piece: Pawn
     position: [1, 0]
   - piece: Knight
-    position: [0, 1]
-  - piece: Rook
     position: [0, 0]
-  - piece: SimpleKing
+  - piece: Queen
+    position: [0, 2]
+  - piece: Bishop
+    position: [0, 1]
+  - piece: King
     position: [0, 4]

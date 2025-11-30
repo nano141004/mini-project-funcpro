@@ -15,6 +15,7 @@ import Data.Char (ord, toLower, isDigit, isAlpha)
 main :: IO ()
 main = do
   hSetEncoding stdout utf8
+  -- first run this command before doing stack run: chcp 65001
 
   putStrLn "--- CustomChessKell (Iteration 2) ---"
   eRuleSet <- Yaml.decodeFileEither "rules_w4.yaml"
@@ -53,57 +54,66 @@ gameLoop rules size state = do
   let player = gsPlayer state
   let board = gsBoard state
 
-  -- 1. Prompt user for input
-  putStrLn $ "--- Turn: " ++ show player ++ " ---"
-  putStr "Enter move (e.g., 'a2 a3'): "
-  hFlush stdout -- Ensure the prompt appears before input
-  line <- getLine
-
-  -- 2. Try to parse and validate the move
-  case parseMove line of
-    Left err -> do
-      putStrLn $ "Error: " ++ err
-      gameLoop rules size state -- Loop again with same state
+  -- --- WEEK 6: WIN CONDITION CHECK (Start of Turn) ---
+  -- 1. Can the current player move?
+  if not (hasLegalMoves rules size board player) then do
+    -- 2. No moves left. Is it Checkmate or Stalemate?
+    if isKingInCheck rules size board player then do
+       putStrLn $ "\n--- CHECKMATE! ---"
+       -- If current player is in checkmate, the *other* player won.
+       let winner = if player == White then Black else White
+       putStrLn $ show winner ++ " wins the game!"
+    else do
+       putStrLn $ "\n--- STALEMATE ---"
+       putStrLn "The game is a Draw (No legal moves)."
     
-    Right (fromPos, toPos) -> do
-      -- 3. Check if the move is legal and "safe"
-      -- let validMoves = getValidMoves rules size board fromPos
-      let validMoves = getSafeMoves rules size board fromPos
+    -- Game ends here (we do not call gameLoop again)
+    return ()
+
+  else do
+    -- 3. Game continues: Prompt user for input
+    putStrLn $ "--- Turn: " ++ show player ++ " ---"
+    
+    -- (Optional: Warn if in check)
+    if isKingInCheck rules size board player then
+      putStrLn "⚠️  WARNING: You are in CHECK!"
+    else return ()
+
+    putStr "Enter move (e.g., 'a2 a3'): "
+    hFlush stdout 
+    line <- getLine
+
+    -- 4. Parse and Validate (Mostly unchanged, removed the old win check)
+    case parseMove line of
+      Left err -> do
+        putStrLn $ "Error: " ++ err
+        gameLoop rules size state 
       
-      -- Check that the piece being moved belongs to the current player
-      let pieceOwner = case Map.lookup fromPos board of
-                         Just p -> Just (pColor p)
-                         Nothing -> Nothing
+      Right (fromPos, toPos) -> do
+        let validMoves = getSafeMoves rules size board fromPos
+        
+        let pieceOwner = case Map.lookup fromPos board of
+                           Just p -> Just (pColor p)
+                           Nothing -> Nothing
 
-      if (Just player /= pieceOwner) then do
-        putStrLn $ "Error: You don't have a piece at " ++ show fromPos
-        gameLoop rules size state -- Loop again
-        
-      else if (toPos `elem` validMoves) then do
-        -- 4. Move is valid! Create the new state
-        let piece = board Map.! fromPos -- Get the piece
-        let newBoard = Map.insert toPos piece (Map.delete fromPos board)
-        
-        -- Print the new board
-        putStrLn (renderBoard size newBoard)
-
-        -- 5. Check for win condition
-        let opponent = if player == White then Black else White
-        if not (findKing newBoard opponent) then do
-          -- King is gone
-          putStrLn $ "\n--- GAME OVER ---"
-          putStrLn $ "Player " ++ show player ++ " wins by capturing the King!"
-        
-        else do
-          -- 6. No win, continue to next turn
+        if (Just player /= pieceOwner) then do
+          putStrLn $ "Error: You don't have a piece at " ++ show fromPos
+          gameLoop rules size state 
+          
+        else if (toPos `elem` validMoves) then do
+          -- Move is valid
+          let piece = board Map.! fromPos
+          let newBoard = Map.insert toPos piece (Map.delete fromPos board)
+          
+          putStrLn (renderBoard size newBoard)
+          
+          let opponent = if player == White then Black else White
           let newState = GameState { gsBoard = newBoard, gsPlayer = opponent }
           gameLoop rules size newState
 
-      else do
-        -- 4. Move is invalid
-        putStrLn $ "Error: Invalid move. " ++ show fromPos ++ " cannot move to " ++ show toPos
-        gameLoop rules size state -- Loop again
-
+        else do
+          putStrLn $ "Error: Invalid move. " ++ show fromPos ++ " cannot move to " ++ show toPos
+          gameLoop rules size state
 
 -- Parses "a2 a3" -> (Pos, Pos)
 parseMove :: String -> Either String (Position, Position)

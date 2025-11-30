@@ -148,17 +148,17 @@ validateKingPresence :: [PieceDef] -> [FormationEntry] -> ValidationResult
 validateKingPresence pieceDefs formation =
   let
     -- 1. Check that "SimpleKing" is defined in the 'pieces' list
-    kingDefined = any (\p -> name p == "SimpleKing") pieceDefs
+    kingDefined = any (\p -> name p == "King") pieceDefs
     -- 2. Check that "SimpleKing" is used in the 'formation' list
-    kingEntries = filter (\e -> piece e == "SimpleKing") formation
+    kingEntries = filter (\e -> piece e == "King") formation
     kingCount = length kingEntries
   in
     if not kingDefined then
-      Left "Validation Error: A piece named 'SimpleKing' must be defined in the 'pieces' list."
+      Left "Validation Error: A piece named 'King' must be defined in the 'pieces' list."
     else case kingCount of
       1 -> Right () -- Exactly one king, this is correct.
-      0 -> Left "Validation Error: No 'SimpleKing' found in 'formation' list. One is required."
-      _ -> Left $ "Validation Error: Found " ++ show kingCount ++ " 'SimpleKing' entries in 'formation'. Exactly one is required."
+      0 -> Left "Validation Error: No 'King' found in 'formation' list. One is required."
+      _ -> Left $ "Validation Error: Found " ++ show kingCount ++ " 'King' entries in 'formation'. Exactly one is required."
 
 validateSlideDirections :: [PieceDef] -> ValidationResult
 validateSlideDirections pieceDefs =
@@ -219,7 +219,7 @@ validateInitialStates size pieces formation = do
   
   -- 2. Check White (Fail-Early)
   when (isKingInCheck rules size board White) $
-    Left "Validation Error: White King starts in Check. The formation is invalid."
+    Left "Validation Error: Black King starts in Check. The formation is invalid."
 
   -- 3. Check Black (Fail-Early)
   when (isKingInCheck rules size board Black) $

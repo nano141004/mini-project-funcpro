@@ -201,7 +201,7 @@ findKing board kingColor =
     -- 'piece' is the current piece
     checkKing piece found
       | found = True -- If already found, stop checking
-      | pName piece == "SimpleKing" && pColor piece == kingColor = True
+      | pName piece == "King" && pColor piece == kingColor = True
       | otherwise = False
   in
     -- Fold over all pieces. Start with 'False' (not found)
@@ -212,7 +212,7 @@ findKing board kingColor =
 findKingPos :: Board -> Color -> Maybe Position
 findKingPos board color = 
   -- We search the map for the piece with symbol 'K' (or 'k') and the right color
-  let match (pos, piece) = pName piece == "SimpleKing" && pColor piece == color
+  let match (pos, piece) = pName piece == "King" && pColor piece == color
       results = filter match (Map.toList board)
   in case results of
        [] -> Nothing
@@ -250,7 +250,6 @@ getSafeMoves rules size board fromPos =
     isMoveSafe toPos =
       let
         -- Simulate the move
-        -- Note: We delete 'from', insert 'to'.
         -- (This automatically handles captures because insert overwrites)
         tempBoard = Map.insert toPos piece (Map.delete fromPos board)
       in
@@ -258,3 +257,16 @@ getSafeMoves rules size board fromPos =
         not (isKingInCheck rules size tempBoard player)
   in
     filter isMoveSafe rawMoves
+
+hasLegalMoves :: RuleMap -> BoardSize -> Board -> Color -> Bool
+hasLegalMoves rules size board player =
+  let
+    -- 1. Get all pieces belonging to the player
+    myPieces = filter (\(_, p) -> pColor p == player) (Map.toList board)
+    
+    -- 2. Check if ANY of them have at least one safe move
+    -- Haskell's LAZY EVALUATION makes this efficient. 
+    -- It stops calculating the moment it finds one 'True'.
+    hasMoves (pos, _) = not (null (getSafeMoves rules size board pos))
+  in
+    any hasMoves myPieces
