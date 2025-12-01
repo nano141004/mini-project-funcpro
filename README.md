@@ -1,77 +1,108 @@
 # ♟️ CustomChessKell
-### Play Chess by Your Own Rules
 
-**CustomChessKell** is a customizable chess engine built in **Haskell**. It reads rules and generate them from a configuration file.
+### *Play Chess by Your Own Rules — Powered by Haskell*
 
-Want a Pawn that moves backwards? A Knight that jumps 4 squares? A Rook that slides diagonally? **You can define it.**
+CustomChessKell is a **fully customizable chess engine** built in **pure Haskell**.
+Unlike traditional chess games with coded-in piece logic, this engine acts as an **Interpreter**: it reads piece movements from a **YAML configuration** and executes them dynamically.
+
+Want a Pawn that moves backward?
+A Knight that jumps 4 squares?
+A Rook that slides diagonally forever?
+
+You can define it — no source code changes required.
 
 ---
 
-## 📸 Board Visualization
+# 📸 Board Visualization (Example)
 
-```text
+```
 5 | ♜ ♞ . . ♚
 4 | ♟ . . . .
 3 | . . . . .
 2 | ♙ . . . .
 1 | ♖ ♘ . . ♔
-   ----------
-    a b c d e
-````
+    ----------
+     a b c d e
+```
 
------
+---
 
-## ✨ Features
+# ✨ Features
 
-  * **📝 Fully Customizable Rules:** Define board size, starting positions, and piece movements using a simple YAML file.
-  * **🧠 Smart Move Validator:** The engine automatically calculates valid moves based on your custom definitions.
-  * **🛡️ Check Safety:** Built-in logic prevents you from making illegal moves that put your King in danger.
-  * **🎨 Professional CLI:** Clear, readable ASCII board using algebraic notation (e.g., `a2 a3`) and Unicode symbols.
-  <!-- * **🧱 Robust Architecture:** Built using Functional Programming principles for maximum reliability. -->
+### 📝 Fully Customizable Rules
 
------
+Define **board size**, **starting positions**, and **piece movements** using a simple YAML file.
 
-## 🚀 Getting Started
+### 🧠 Smart Move Validator
 
-### Prerequisites
+The engine interprets your movement rules using an internal **AST (Abstract Syntax Tree)** and computes legal moves dynamically.
 
-  * [Haskell Stack](https://docs.haskellstack.org/en/stable/install_and_upgrade/)
+### 🛡️ Check Safety
 
-### Installation & Run
+Uses simulation + immutability to reject moves that put your own King in danger.
 
-1.  Clone the repository:
+### 🎨 Clean CLI
 
-    ```bash
-    git clone [https://github.com/your-username/customchesskell.git](https://github.com/your-username/customchesskell.git)
-    cd customchesskell
-    ```
+Readable ASCII board using algebraic notation (e.g., `a2 a3`) and Unicode piece symbols.
 
-2.  **Build and Run:**
-    *Note: If you are on Windows, run the `chcp` command first to ensure chess symbols display correctly.*
+### 🤖 Automatic Game Termination
 
-    ```bash
-    # (Windows Only) Enable UTF-8 for chess symbols
-    chcp 65001
+Detects **Checkmate** and **Stalemate** using lazy evaluation for efficiency.
 
-    # Build and start the game
-    stack run
-    ```
+---
 
------
+# 🚀 Getting Started
 
-## 🛠️ How to Create Your Own Pieces
+## 📦 Prerequisites
 
-The magic happens in `rules.yaml`. You can edit this file to invent new pieces.
+* [Haskell Stack](https://docs.haskellstack.org/)
 
-### The "Language" of Movement
+---
 
-The engine understands three types of movement commands:
+## 🛠 Installation & Run
 
-1.  **Step:** Move exactly one square (like a King).
-2.  **Jump:** Leap over other pieces to a specific square (like a Knight).
-3.  **Slide:** Move continuously in a direction until blocked (like a Rook or Bishop).
+Clone the repository:
 
-### Example: Creating a "Mega Knight"
+```bash
+git clone https://github.com/your-username/customchesskell.git
+cd customchesskell
+```
+
+### Windows Only — Enable UTF-8 for Unicode Chess Symbols
+
+```bash
+chcp 65001
+```
+
+### Build and Run
+
+```bash
+stack run
+```
+
+---
+
+# 🧠 Creating Your Own Pieces
+
+All customization happens in **`rules.yaml`**.
+
+## Movement "Language" (DSL)
+
+The engine understands three primitive commands:
+
+### `Step`
+
+Move exactly one square (e.g., King movement).
+
+### `Jump`
+
+Leap to a specific square, ignoring blockers (e.g., Knight movement).
+
+### `Slide`
+
+Move continuously in a direction until blocked (e.g., Rook/Bishop movement).
+
+## Example: A “Mega Knight”
 
 ```yaml
 - name: MegaKnight
@@ -79,33 +110,109 @@ The engine understands three types of movement commands:
   symbol_black: 'm'
   moves:
     - type: Jump
-      offset: [3, 0]  
+      offset: [3, 0]   # A super-long Knight-like jump
 ```
 
------
+---
 
-## 🧩 Technical Overview
+# 🧩 Technical Overview — Functional Programming Concepts
 
-This project demonstrates core **Functional Programming** concepts:
+CustomChessKell was built as a showcase of **Functional Programming architecture**.
+Below are the main design principles used:
 
-### 1\. The Validator
+---
 
-Before the game starts, the config file passes through a strict validation pipeline. We use the **`Either` Monad** to "fail-fast." If your rules contain a logic error (e.g., a slide with an invalid direction), the engine refuses to start, guaranteeing a crash-free game loop.
+## 1️⃣ The Gauntlet: Monadic Validation
 
-### 2\. The Interpreter Engine
+### 🧩 Concept: Fail-Fast with the `Either` Monad
 
-Instead of hard-coding logic like `if (piece == Rook)`, the engine acts as an **Interpreter**. It parses the Abstract Syntax Tree (AST) of your `rules.yaml` and executes the `Step`, `Jump`, or `Slide` commands dynamically.
+Before the game starts, your configuration file is processed by a sequential validation pipeline:
 
-### 3\. Pure Functions & Immutability
+* missing pieces
+* invalid symbols
+* conflicting placements
+* missing kings
 
-The game state is immutable. To check if a move is safe (not checkmate), the engine simulates the move in a "parallel universe" (a temporary board state), checks the logic, and then discards it—all without ever mutating the actual game board.
+Using `Either` allows:
 
------
+✔ clean error propagation
+✔ early termination on failure
+✔ dependent checks (e.g., king existence → king position → king safety)
 
-<!-- ## 🤝 Contributing
+The engine refuses to run if the configuration is invalid.
 
-Feel free to open issues or submit pull requests if you have ideas for new movement types (e.g., "Teleport")\!
+---
 
-## 📄 License
+## 2️⃣ Interpreter Pattern via ADTs
 
-Distributed under the MIT License. See `LICENSE` for more information. -->
+### 🧩 Concept: Data-Driven Logic
+
+Movement rules are defined as an **AST**:
+
+```haskell
+data MoveRule
+  = Step Position
+  | Jump Position
+  | Slide Position
+```
+
+The core engine **pattern-matches** on this AST in `getValidMoves`, meaning:
+
+* no `if piece == ...` hacks
+* infinite extensibility
+* new movement rules added purely through YAML
+
+This is a true Interpreter architecture.
+
+---
+
+## 3️⃣ Simulation Through Immutability
+
+### 🧩 Concept: Snapshot Instead of Undo
+
+Checking move safety requires simulating the board *after* a move.
+
+Imperative engines must do:
+
+```
+apply move → check → undo move
+```
+
+Risk: mutation leaks, incorrect undo, corrupted state.
+
+Functional approach:
+
+```
+newBoard = applyMove oldBoard
+check newBoard
+```
+
+Because `oldBoard` is immutable, **simulation is safe by construction**.
+
+---
+
+## 4️⃣ Lazy Evaluation for Optimization
+
+### 🧩 Concept: Efficiency Without Manual Control Flow
+
+To detect Checkmate or Stalemate, the engine must answer:
+
+> “Does the current player have **ANY** legal moves?”
+
+Using:
+
+```haskell
+any hasMoves myPieces
+```
+
+Haskell evaluates `hasMoves` lazily:
+
+* stops on the **first** valid move
+* avoids computing safe moves for all pieces
+* no manual `break` or `return` needed
+* expensive simulations are skipped automatically
+
+This results in optimal behavior from purely declarative code.
+
+---
+
