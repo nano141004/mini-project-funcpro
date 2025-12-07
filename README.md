@@ -3,7 +3,7 @@
 ### *Play Chess by Your Own Rules — Powered by Haskell*
 
 CustomChessKell is a **fully customizable chess engine** built in **pure Haskell**.
-Unlike traditional chess games with coded-in piece logic, this engine acts as an **Interpreter**: it reads piece movements from a **YAML configuration** and executes them dynamically.
+Unlike traditional chess games with coded-in piece logic, this engine acts as an **Interpreter**: it reads piece movement behaviours from a **YAML configuration** and executes them dynamically.
 
 Want a Pawn that moves backward?
 A Knight that jumps 4 squares?
@@ -68,7 +68,7 @@ git clone https://github.com/your-username/customchesskell.git
 cd customchesskell
 ```
 
-### Windows Only — Enable UTF-8 for Unicode Chess Symbols
+### For Windows' Users — Enable UTF-8 for Unicode Chess Symbols
 
 ```bash
 chcp 65001
@@ -80,38 +80,124 @@ chcp 65001
 stack run
 ```
 
+### Input the rules to be interpreted
+
+```bash
+--- CustomChessKell ---
+Enter rules file path (e.g., rules.yaml): 
+```
+
 ---
+
 
 # 🧠 Creating Your Own Pieces
 
-All customization happens in **`rules.yaml`**.
+All customization happens in **`.yaml`** file (You need to make it first, or you can see the template rules - in `rules_w4.yaml`). This file controls the physics of your chess universe. The engine strictly enforces rules to prevent game-breaking logic (like infinite loops or missing kings).
 
-## Movement "Language" (DSL)
+The file is divided into three main sections:
 
-The engine understands three primitive commands:
+---
 
-### `Step`
-
-Move exactly one square (e.g., King movement).
-
-### `Jump`
-
-Leap to a specific square, ignoring blockers (e.g., Knight movement).
-
-### `Slide`
-
-Move continuously in a direction until blocked (e.g., Rook/Bishop movement).
-
-## Example: A “Mega Knight”
+## 1. `board_size`
+Defines the dimensions of the grid.
 
 ```yaml
-- name: MegaKnight
-  symbol_white: 'M'
-  symbol_black: 'm'
-  moves:
-    - type: Jump
-      offset: [3, 0]   # A super-long Knight-like jump
+board_size:
+  rows: 8
+  cols: 8
 ```
+
+  * **Note:** You can create rectangular boards (e.g., 5x8).
+
+
+## 2\. `pieces`
+
+This is where you define the "DNA" of your pieces: their names, symbols, and how they move.
+
+### The Anatomy of a Piece
+
+```yaml
+- name: SuperPawn
+  symbol_white: 'P'  # Displayed for White
+  symbol_black: 'p'  # Displayed for Black
+  moves: [...]       # List of movement rules
+```
+
+  * **Constraint (Uniqueness):** Every symbol defined in the file must be unique. You cannot have a Pawn and a King both using 'P'.
+
+### The Movement DSL (Domain Specific Language)
+
+The engine understands three specific movement types. Your piece's behavior is a list of these rules.
+
+#### A. `Step` (Short Range)
+
+Moves exactly **one square** to an adjacent tile.
+
+  * **Logic:** Can move to empty squares or capture enemies. Cannot jump.
+  * **Validation Constraint:** The offset must be exactly 1 square away (e.g., `[1,0]` or `[1,1]`). `[2,0]` is invalid.
+
+<!-- end list -->
+
+```yaml
+- type: Step
+  offset: [1, 0]  # Move 1 square Forward
+```
+
+#### B. `Jump` (Teleportation)
+
+Leaps directly to a target square, ignoring any pieces in between.
+
+  * **Logic:** Typically for Knights. Can jump over walls/pieces.
+  * **Validation Constraint:** The offset must be **greater than 1 square** away. A jump of `[1,0]` is invalid (use Step instead).
+
+<!-- end list -->
+
+```yaml
+- type: Jump
+  offset: [2, 1]  # The classic "L" shape
+```
+
+#### C. `Slide` (Long Range)
+
+Moves continuously in a specific direction until it hits the edge of the board or another piece.
+
+  * **Logic:** Typically for Rooks/Bishops. If it hits an enemy, it can capture.
+  * **Validation Constraint:** The `direction` must be a **unit vector** (length of 1).
+      * Valid: `[1, 0]` (Forward), `[1, 1]` (Diagonal).
+      * Invalid: `[2, 0]` (You cannot "skip" squares while sliding).
+
+<!-- end list -->
+
+```yaml
+- type: Slide
+  direction: [1, 1] # Slide diagonally North-East
+```
+
+-----
+
+## 3\. `formation`
+
+Defines where pieces sit at the start of the game.
+
+**Important:** You only define the formation for **White** (the bottom side). The engine automatically mirrors this setup for **Black** on the top side.
+
+```yaml
+formation:
+  - piece: SuperPawn
+    position: [1, 0]  # Row 1, Col 0
+  - piece: SimpleKing
+    position: [0, 4]
+```
+
+### Critical Constraints (The "Gauntlet")
+
+The engine will **refuse to start** if your formation breaks these rules:
+
+1.  **The "Half-Board" Rule:** White pieces must be placed in the bottom half of the board (Rows `< total_rows / 2`). This ensures White and Black don't spawn on top of each other during reflection.
+2.  **The King Rule:** You **must** define exactly one piece named `King` in your piece list, and you **must** place exactly one `King` in the formation. (Without a King, checkmate logic is impossible).
+3.  **Collision Rule:** Two pieces cannot start on the same square.
+
+<!-- end list -->
 
 ---
 
