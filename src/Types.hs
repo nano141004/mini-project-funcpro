@@ -38,7 +38,7 @@ instance FromJSON Position where
 data BoardSize = BoardSize { rows :: Int, cols :: Int }
   deriving (Show, Generic, FromJSON)
 
--- piece movement def (UPDATED)
+-- piece movement def 
 data PieceDef = PieceDef
   { name :: Text
   , moves :: [MoveRule] 
@@ -52,7 +52,7 @@ data FormationEntry = FormationEntry
   , position :: Position 
   } deriving (Show, Generic, FromJSON)
 
--- entire rule set (UPDATED)
+-- entire rule set 
 data RuleSet = RuleSet
   { board_size :: BoardSize
   , pieces :: [PieceDef]
@@ -73,17 +73,15 @@ data GameState = GameState
   , gsPlayer :: Color
   } deriving (Show)
 
--- new rule
 data MoveRule
   = Step Position  -- A single step to an adjacent square
-  | Jump Position  -- A single leap to a non-adjacent square
+  | Jump Position  -- A single leap to any square
   | Slide Position -- A repeated slide in one direction (e.g., [1,0] or [1,1])
   deriving (Show, Generic)
 
--- new custom parser the MoveRule AST
+-- custom parser for the MoveRule AST
 instance FromJSON MoveRule where
   parseJSON = withObject "MoveRule" $ \v -> do
-    -- Get the "type" field from the YAML object
     ruleType <- v .: "type"
     case (ruleType :: String) of
       "Step" -> Step <$> v .: "offset"

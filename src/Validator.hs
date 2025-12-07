@@ -27,14 +27,13 @@ validateRuleSet rs = do
   validatePieceNames pieceDefs formationEntries
   validateFormationPositions boardSize formationEntries
   validateFormationCollisions formationEntries
-  -- validateStepMoves pieceDefs  -- removed for now
   validateFormationArea boardSize formationEntries
-  validateKingPresence pieceDefs formationEntries -- adjustment
+  validateKingPresence pieceDefs formationEntries 
 
-  validateSlideDirections pieceDefs -- <-- ADDED NEW cases
-  validateJumpOffsets pieceDefs -- <-- ADDED NEW cases
+  validateSlideDirections pieceDefs 
+  validateJumpOffsets pieceDefs 
 
-  validateStepOffsets pieceDefs -- <-- ADDED NEW cases
+  validateStepOffsets pieceDefs 
 
   validateInitialStates boardSize pieceDefs formationEntries
 
@@ -43,11 +42,12 @@ validateRuleSet rs = do
   -- if all checks pass, return the original RuleSet
   return rs
 
+
 -- | Check 1: Ensure all pieces in 'formation' are defined in 'pieces'.
 validatePieceNames :: [PieceDef] -> [FormationEntry] -> ValidationResult
 validatePieceNames pieceDefs formation =
   let
-    -- A Set of all valid piece names (e.g., {"SimplePawn", "SimpleKing"})
+    -- A Set of all valid piece names 
     definedNames = Set.fromList $ map name pieceDefs
     
     -- Check each entry in the formation
@@ -60,6 +60,7 @@ validatePieceNames pieceDefs formation =
   in
     -- 'mapM_' runs 'check' on every entry and stops at the first 'Left'
     mapM_ check formation
+
 
 -- | Check 2: Ensure all pieces in 'formation' start on the board.
 validateFormationPositions :: BoardSize -> [FormationEntry] -> ValidationResult
@@ -74,12 +75,11 @@ validateFormationPositions boardSize formation =
   in
     mapM_ check formation
 
--- | Check 3: Ensure no two pieces start on the same square.
+
+-- | Check 3: Ensure no more than one piece start on the same square.
 validateFormationCollisions :: [FormationEntry] -> ValidationResult
 validateFormationCollisions formation =
   let
-    -- We fold the list into a Set of positions, checking for duplicates
-    -- as we go.
     check entry (Right posSet) =
       let pos = position entry
       in
@@ -88,42 +88,16 @@ validateFormationCollisions formation =
                     "Both '" ++ T.unpack (piece entry) ++ "' and another " ++
                     "piece are at " ++ show pos ++ "."
         else Right (Set.insert pos posSet)
-    check _ (Left err) = Left err -- Propagate any previous error
+    check _ (Left err) = Left err 
     
-    -- Start with an empty Set. The 'foldr' will build it up.
     initial = Right Set.empty
   in
     -- 'foldr' will run the 'check' function on each entry
     -- If 'check' ever returns a 'Left', the fold stops
-    foldr check initial formation >> return () -- '>> return ()' discards the Set and returns 'Right ()' on success
+    foldr check initial formation >> return ()
 
--- Check 4
--- validateStepMoves :: [PieceDef] -> ValidationResult
--- validateStepMoves pieceDefs =
---   let
---     -- Check a single piece definition
---     checkPiece piece =
---       let pieceName = name piece
-          
---           -- Check a single move offset (e.g., [2, 0])
---           checkMove moveOffset =
---             let 
---                 (Pos dr dc) = moveOffset
---                 -- A move is a "step" if its largest component (row or col) is 1
---                 isStepMove = max (abs dr) (abs dc) == 1
---             in
---               when (not isStepMove) $
---                 Left $ "Validation Error: Piece '" ++ T.unpack pieceName ++
---                        "' has an invalid move " ++ show moveOffset ++
---                        ". Iteration 1 only supports single-step moves (max 1 square in any direction)."
---       in
---         -- Run checkMove on all of the piece's moves
---         mapM_ checkMove (moves piece)
---   in
---     -- Run checkPiece on all defined pieces
---     mapM_ checkPiece pieceDefs
 
--- Check 5
+-- | Check 4: Ensure all pieces is on the correct side
 validateFormationArea :: BoardSize -> [FormationEntry] -> ValidationResult
 validateFormationArea boardSize formation =
   let
@@ -143,23 +117,26 @@ validateFormationArea boardSize formation =
   in
     mapM_ check formation
 
--- adjustment
+
+-- | Check 5: Ensure the board should atleast has exactly 1 King
 validateKingPresence :: [PieceDef] -> [FormationEntry] -> ValidationResult
 validateKingPresence pieceDefs formation =
   let
-    -- 1. Check that "SimpleKing" is defined in the 'pieces' list
+    -- 1. Check that "King" is defined in the 'pieces' list
     kingDefined = any (\p -> name p == "King") pieceDefs
-    -- 2. Check that "SimpleKing" is used in the 'formation' list
+    -- 2. Check that "King" is used in the 'formation' list
     kingEntries = filter (\e -> piece e == "King") formation
     kingCount = length kingEntries
   in
     if not kingDefined then
       Left "Validation Error: A piece named 'King' must be defined in the 'pieces' list."
     else case kingCount of
-      1 -> Right () -- Exactly one king, this is correct.
+      1 -> Right () -- Exactly one king
       0 -> Left "Validation Error: No 'King' found in 'formation' list. One is required."
       _ -> Left $ "Validation Error: Found " ++ show kingCount ++ " 'King' entries in 'formation'. Exactly one is required."
 
+
+-- | Check 6: Slide direction checking 
 validateSlideDirections :: [PieceDef] -> ValidationResult
 validateSlideDirections pieceDefs =
   let
@@ -175,7 +152,8 @@ validateSlideDirections pieceDefs =
   in
     mapM_ checkPiece pieceDefs
 
--- --- NEW CHECK 7 ---
+
+-- | Check 7: Jump checking - should be more than 1 - if only 1, than just use step
 validateJumpOffsets :: [PieceDef] -> ValidationResult
 validateJumpOffsets pieceDefs =
   let
@@ -188,11 +166,12 @@ validateJumpOffsets pieceDefs =
            Left $ "Validation Error: Piece '" ++ T.unpack pieceName ++
                   "' has a Jump with an invalid offset " ++ show (Pos dr dc) ++
                   ". Jumps must be more than 1 square."
-    checkMove _ _ = Right () -- Don't check Step or Slide
+    checkMove _ _ = Right () 
   in
     mapM_ checkPiece pieceDefs
 
--- new check
+
+-- | Check 8: Step checking - must be exactly 1 square
 validateStepOffsets :: [PieceDef] -> ValidationResult
 validateStepOffsets pieceDefs =
   let
@@ -205,9 +184,10 @@ validateStepOffsets pieceDefs =
            Left $ "Validation Error: Piece '" ++ T.unpack pieceName ++
                   "' has a Step with an invalid offset " ++ show (Pos dr dc) ++
                   ". Step offsets must be exactly 1 square."
-    checkMove _ _ = Right () -- Don't check Jump or Slide
+    checkMove _ _ = Right ()
   in
     mapM_ checkPiece pieceDefs
+
 
 -- | Check 9: Ensure neither side starts in Check.
 validateInitialStates :: BoardSize -> [PieceDef] -> [FormationEntry] -> ValidationResult
@@ -217,15 +197,16 @@ validateInitialStates size pieces formation = do
 
   let board = buildInitialBoard size formation rules
   
-  -- 2. Check White (Fail-Early)
+  -- 2. Check White 
   when (isKingInCheck rules size board White) $
     Left "Validation Error: Black King starts in Check. The formation is invalid."
 
-  -- 3. Check Black (Fail-Early)
+  -- 3. Check Black 
   when (isKingInCheck rules size board Black) $
     Left "Validation Error: Black King starts in Check. The formation is invalid."
     
   return ()
+
 
 -- | Check 10: Ensure all defined symbols (white and black) are unique across all pieces.
 validateUniqueSymbols :: [PieceDef] -> ValidationResult

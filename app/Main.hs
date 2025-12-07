@@ -1,4 +1,3 @@
--- src/Main.hs (Revised for Week 3)
 module Main where
 
 import qualified Data.Yaml as Yaml
@@ -15,10 +14,14 @@ import Data.Char (ord, toLower, isDigit, isAlpha)
 main :: IO ()
 main = do
   hSetEncoding stdout utf8
-  -- first run this command before doing stack run: chcp 65001
+  -- run this command before doing stack run: chcp 65001
 
-  putStrLn "--- CustomChessKell (Iteration 2) ---"
-  eRuleSet <- Yaml.decodeFileEither "rules_w4.yaml"
+  -- 1. Read rules file based on the given path (user input)
+  putStrLn "--- CustomChessKell ---"
+  putStr "Enter rules file path (e.g., rules.yaml): "
+  hFlush stdout
+  rulesFile <- getLine
+  eRuleSet <- Yaml.decodeFileEither rulesFile
 
   -- 2. VALIDATE the raw RuleSet
   let validatedRuleSet = case eRuleSet of
@@ -27,14 +30,14 @@ main = do
 
   -- 3. Check the result of the validation
   case validatedRuleSet of
-    -- If validation FAILED
+    -- validation FAILED
     Left errMsg -> do
       putStrLn "\n--- ERROR ---"
       putStrLn "Failed to load rules:"
       putStrLn errMsg
       exitFailure 
 
-    -- If validation SUCCEEDED
+    -- validation SUCCEEDED
     Right ruleSet -> do
       putStrLn "Successfully loaded and validated rules."
       
@@ -48,33 +51,34 @@ main = do
       putStrLn (renderBoard boardSize initialBoard)
       gameLoop rules boardSize initialState
 
+
 -- gameloop
 gameLoop :: RuleMap -> BoardSize -> GameState -> IO ()
 gameLoop rules size state = do
   let player = gsPlayer state
   let board = gsBoard state
 
-  -- --- WEEK 6: WIN CONDITION CHECK (Start of Turn) ---
   -- 1. Can the current player move?
   if not (hasLegalMoves rules size board player) then do
+
     -- 2. No moves left. Is it Checkmate or Stalemate?
     if isKingInCheck rules size board player then do
        putStrLn $ "\n--- CHECKMATE! ---"
-       -- If current player is in checkmate, the *other* player won.
+       -- If current player is in checkmate, the other player won.
        let winner = if player == White then Black else White
        putStrLn $ show winner ++ " wins the game!"
+
     else do
        putStrLn $ "\n--- STALEMATE ---"
        putStrLn "The game is a Draw (No legal moves)."
     
-    -- Game ends here (we do not call gameLoop again)
     return ()
 
   else do
     -- 3. Game continues: Prompt user for input
     putStrLn $ "--- Turn: " ++ show player ++ " ---"
     
-    -- (Optional: Warn if in check)
+    -- Warn if in check
     if isKingInCheck rules size board player then
       putStrLn "⚠️  WARNING: You are in CHECK!"
     else return ()
@@ -83,7 +87,7 @@ gameLoop rules size state = do
     hFlush stdout 
     line <- getLine
 
-    -- 4. Parse and Validate (Mostly unchanged, removed the old win check)
+    -- 4. Parse and Validate 
     case parseMove line of
       Left err -> do
         putStrLn $ "Error: " ++ err
@@ -115,6 +119,7 @@ gameLoop rules size state = do
           putStrLn $ "Error: Invalid move. " ++ show fromPos ++ " cannot move to " ++ show toPos
           gameLoop rules size state
 
+
 -- Parses "a2 a3" -> (Pos, Pos)
 parseMove :: String -> Either String (Position, Position)
 parseMove input =
@@ -125,6 +130,7 @@ parseMove input =
         (Left err, _) -> Left $ "Invalid 'from' square: " ++ err
         (_, Left err) -> Left $ "Invalid 'to' square: " ++ err
     _ -> Left "Invalid format. Use algebraic notation (e.g., 'a2 a3')."
+
 
 -- Parses "e2" -> Pos {r=1, c=4}
 parseChessPos :: String -> Either String Position

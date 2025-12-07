@@ -10,7 +10,6 @@ import Data.List (intersperse)
 
 type Board = Map.Map Position Piece
 
--- Updated: Store both symbols
 data PieceRules = PieceRules
   { rMoves :: [MoveRule]
   , rSymWhite :: Char
@@ -76,7 +75,7 @@ isPosOnBoard (BoardSize {..}) (Pos {..}) =
   r >= 0 && r < rows && c >= 0 && c < cols
 
 
--- update (refactor)
+-- valid moves mean every move from the piece that is within the board, the movement to the target pos isnt blocked, and there is no "friend" piece on the target pos
 getValidMoves :: RuleMap -> BoardSize -> Board -> Position -> [Position]
 getValidMoves rules size board fromPos =
   case Map.lookup fromPos board of
@@ -100,11 +99,11 @@ getValidMoves rules size board fromPos =
           
       in concatMap evalMove moveRules
   where
-    -- Helper: Is a square valid to land on? (On board & not friendly)
+    -- Is a square valid to land on? (On board & not friendly)
     isTargetValid toPos =
       isPosOnBoard size toPos &&
       case Map.lookup toPos board of
-        Nothing -> True -- Empty is fine
+        Nothing -> True 
         Just target -> pColor target /= pColor (board Map.! fromPos) -- Enemy is fine
 
     -- --- INTERPRETER LOGIC ---
@@ -115,14 +114,13 @@ getValidMoves rules size board fromPos =
       in if isTargetValid toPos then [toPos] else []
 
     -- 2. Evaluates a Jump
-    --    (Identical to Step, as our v1 'isValidMove' only checks the destination)
     evalJump offset =
       let toPos = fromPos `add` offset
       in if isTargetValid toPos then [toPos] else []
 
-    -- 3. Evaluates a Slide (The new complex logic)
+    -- 3. Evaluates a Slide 
     evalSlide direction =
-      -- This is a recursive helper that "walks" in one direction
+      -- recursively adding one 
       let
         walk (nextPos:remaining)
           | not (isPosOnBoard size nextPos) = [] -- Hit edge of board
@@ -139,84 +137,53 @@ getValidMoves rules size board fromPos =
         in
           walk path 
 
+
 renderBoard :: BoardSize -> Board -> String
 renderBoard (BoardSize {..}) board =
-  -- let
-  --   -- Helper to get char for a single cell
-  --   cellToChar :: Position -> Char
-  --   cellToChar pos = case Map.lookup pos board of
-  --     Nothing -> '.'
-  --     Just p  -> pieceToChar p
-    
-  --   -- Helper to get char for a piece
-  --   pieceToChar :: Piece -> Char
-  --   pieceToChar (Piece "SimplePawn" White) = 'P'
-  --   pieceToChar (Piece "SimplePawn" Black) = 'p'
-  --   pieceToChar (Piece "SimpleKing" White) = 'K'
-  --   pieceToChar (Piece "SimpleKing" Black) = 'k'
-
-  --   -- --- ADDED THESE NEW CASES ---
-  --   pieceToChar (Piece "Knight" White)     = 'N' -- 'N' for kNight
-  --   pieceToChar (Piece "Knight" Black)     = 'n'
-  --   pieceToChar (Piece "Rook" White)       = 'R'
-  --   pieceToChar (Piece "Rook" Black)       = 'r'
-
-  --   pieceToChar (Piece "Bishop" White)       = 'B'
-  --   pieceToChar (Piece "Bishop" Black)       = 'b'
-
-  --   pieceToChar _ = '?' -- Fallback for unknown pieces
-
   let
     cellToChar :: Position -> Char
     cellToChar pos = case Map.lookup pos board of
-      Nothing -> if (r pos + c pos) `mod` 2 == 0 then ' ' else '.' -- Nice checkerboard effect
+      Nothing -> if (r pos + c pos) `mod` 2 == 0 then ' ' else '.' 
       Just p  -> pSymbol p
 
     -- Create rows (Top to Bottom)
     rowsAsStrings = [ [cellToChar (Pos r c) | c <- [0..cols-1]] | r <- [rows-1, rows-2 .. 0] ]
     
     -- Add Row Numbers (1-based labels)
-    -- We display '1' for index 0, etc.
+    -- display '1' for index 0
     addRowNum r str = show (r + 1) ++ " | " ++ (intersperse ' ' str)
     numberedRows = zipWith addRowNum [rows-1, rows-2 .. 0] rowsAsStrings
 
     -- Create Column Header (a, b, c...)
-    -- 'take cols ['a'..]' automatically gives us "a b c d e..."
     colLabels = intersperse ' ' (take cols ['a'..])
     colHeader = "    " ++ colLabels
     separator = "   " ++ replicate (cols * 2) '-'
 
   in
-    -- Combine all lines into one string, separated by newlines
     unlines (numberedRows ++ [separator, colHeader])
 
--- | --- NEW FUNCTION ---
--- | Checks if a King of a given color is on the board.
--- | Returns True if king exists, False otherwise.
+
+-- Checks if a King of a given color is on the board.
+-- Returns True if king exists, False otherwise.
 findKing :: Board -> Color -> Bool
 findKing board kingColor =
   let
-    -- The check function for the fold
-    -- 'found' is the accumulator (True/False)
-    -- 'piece' is the current piece
     checkKing piece found
       | found = True -- If already found, stop checking
       | pName piece == "King" && pColor piece == kingColor = True
       | otherwise = False
   in
-    -- Fold over all pieces. Start with 'False' (not found)
-    -- 'checkKing' will be called on each piece
     Map.foldr checkKing False board
 
 
 findKingPos :: Board -> Color -> Maybe Position
 findKingPos board color = 
-  -- We search the map for the piece with symbol 'K' (or 'k') and the right color
   let match (pos, piece) = pName piece == "King" && pColor piece == color
       results = filter match (Map.toList board)
   in case results of
        [] -> Nothing
        ((pos, _):_) -> Just pos
+
 
 isKingInCheck :: RuleMap -> BoardSize -> Board -> Color -> Bool
 isKingInCheck rules size board color =
@@ -230,16 +197,17 @@ isKingInCheck rules size board color =
         enemyPieces = filter (\(pos, p) -> pColor p == opponent) (Map.toList board)
         
         -- Check if ANY enemy piece can move to the King's square
-        -- We use 'getValidMoves' (the raw interpreter) to see enemy attacks
         canHitKing (enemyPos, _) = 
             kingPos `elem` (getValidMoves rules size board enemyPos)
       in
         any canHitKing enemyPieces
 
+
+-- safe moves means any move that wont cause the king can be captured, or neglecting a check condition
 getSafeMoves :: RuleMap -> BoardSize -> Board -> Position -> [Position]
 getSafeMoves rules size board fromPos =
   let
-    -- 1. Get all physically possible moves (The Interpreter)
+    -- 1. Get all physically possible moves 
     rawMoves = getValidMoves rules size board fromPos
     
     -- 2. Define the piece moving
@@ -250,7 +218,6 @@ getSafeMoves rules size board fromPos =
     isMoveSafe toPos =
       let
         -- Simulate the move
-        -- (This automatically handles captures because insert overwrites)
         tempBoard = Map.insert toPos piece (Map.delete fromPos board)
       in
         -- If King is NOT in check on the new board, the move is safe
@@ -258,15 +225,12 @@ getSafeMoves rules size board fromPos =
   in
     filter isMoveSafe rawMoves
 
+
 hasLegalMoves :: RuleMap -> BoardSize -> Board -> Color -> Bool
 hasLegalMoves rules size board player =
   let
-    -- 1. Get all pieces belonging to the player
     myPieces = filter (\(_, p) -> pColor p == player) (Map.toList board)
     
-    -- 2. Check if ANY of them have at least one safe move
-    -- Haskell's LAZY EVALUATION makes this efficient. 
-    -- It stops calculating the moment it finds one 'True'.
     hasMoves (pos, _) = not (null (getSafeMoves rules size board pos))
   in
     any hasMoves myPieces
