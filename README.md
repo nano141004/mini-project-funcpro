@@ -189,7 +189,7 @@ formation:
     position: [0, 4]
 ```
 
-### Critical Constraints (The "Gauntlet")
+### Critical Constraints
 
 The engine will **refuse to start** if your formation breaks these rules:
 
@@ -201,104 +201,148 @@ The engine will **refuse to start** if your formation breaks these rules:
 
 ---
 
-# 🧩 Technical Overview — Functional Programming Concepts
+# 🧠 Technical Overview — FP Implementation & Trade-offs
 
-CustomChessKell was built as a showcase of **Functional Programming architecture**.
-Below are the main design principles used:
+This section explains the concrete design choices made in the implementation and why they matter. 
 
----
+### 1. Monadic Validation 
 
-## 1️⃣ The Gauntlet: Monadic Validation
-
-### 🧩 Concept: Fail-Fast with the `Either` Monad
-
-Before the game starts, your configuration file is processed by a sequential validation pipeline:
-
-* missing pieces
-* invalid symbols
-* conflicting placements
-* missing kings
-
-Using `Either` allows:
-
-✔ clean error propagation
-✔ early termination on failure
-✔ dependent checks (e.g., king existence → king position → king safety)
-
-The engine refuses to run if the configuration is invalid.
-
----
-
-## 2️⃣ Interpreter Pattern via ADTs
-
-### 🧩 Concept: Data-Driven Logic
-
-Movement rules are defined as an **AST**:
+**What it is (implementation):**
+Before the engine starts, the YAML rules are parsed into `RuleSet` and passed through a validation pipeline implemented with the `Either String` monad:
 
 ```haskell
-data MoveRule
-  = Step Position
-  | Jump Position
-  | Slide Position
+validateRuleSet :: RuleSet -> Either String RuleSet
+validateRuleSet rs = do
+  validatePieceNames rs
+  validateKingPresence rs
+  validateFormationConstraints rs
+  return rs
 ```
 
-The core engine **pattern-matches** on this AST in `getValidMoves`, meaning:
+**Why:**
+Using `Either` keeps the validator pure and composable. Each validation step is a pure function; any `Left` short-circuits the pipeline and prevents the engine from starting with an invalid ruleset.
 
-* no `if piece == ...` hacks
-* infinite extensibility
-* new movement rules added purely through YAML
+**What we got:**
 
-This is a true Interpreter architecture.
+* Simple, readable validation flow.
+* No exceptions or runtime errors; invalid configs are detected early and reported.
+
+**Limitations:**
+
+* `Either` *short-circuits* at the first error. We get the first failing reason, not a list of all problems. For large rule files this can be irritating when debugging.
+* If we want accumulated error reports (all errors at once), an `Applicative` validation (e.g., `Validation` from `validation` package) would be more appropriate.
 
 ---
 
-## 3️⃣ Simulation Through Immutability
+### 2. Interpreter Pattern via ADTs (Move DSL)
 
-### 🧩 Concept: Snapshot Instead of Undo
-
-Checking move safety requires simulating the board *after* a move.
-
-Imperative engines must do:
-
-```
-apply move → check → undo move
-```
-
-Risk: mutation leaks, incorrect undo, corrupted state.
-
-Functional approach:
-
-```
-newBoard = applyMove oldBoard
-check newBoard
-```
-
-Because `oldBoard` is immutable, **simulation is safe by construction**.
-
----
-
-## 4️⃣ Lazy Evaluation for Optimization
-
-### 🧩 Concept: Efficiency Without Manual Control Flow
-
-To detect Checkmate or Stalemate, the engine must answer:
-
-> “Does the current player have **ANY** legal moves?”
-
-Using:
+**What it is (implementation):**
+Movement rules are represented as an ADT (the DSL), parsed from YAML via `FromJSON` instances, and interpreted centrally:
 
 ```haskell
-any hasMoves myPieces
+data MoveRule = Step Position | Jump Position | Slide Position
+
+evalMove :: MoveRule -> ...
+evalMove rule = case rule of
+  Step off -> evalStep off
+  Jump off -> evalJump off
+  Slide dir -> evalSlide dir
 ```
 
-Haskell evaluates `hasMoves` lazily:
+**Why:**
+Modeling moves as data (not behavior embedded in code) makes the engine data-driven: new movement behaviors are added by editing YAML + ADT + interpreter branch — no scattering of special-case logic.
 
-* stops on the **first** valid move
-* avoids computing safe moves for all pieces
-* no manual `break` or `return` needed
-* expensive simulations are skipped automatically
+**What we got:**
 
-This results in optimal behavior from purely declarative code.
+* Extensibility: new rules are additions to the language, not brittle patches.
+* The compiler helps: non-exhaustive pattern matches are caught at compile time.
+
+**Limitations:**
+
+* The interpreter must be extended in the code when new AST constructors are added (the interpreter is the single place to change, which is purposeful but still a code change).
+* Very complex behaviors (stateful piece abilities or contextful rules) may require richer DSL constructs (conditions, multi-step macros). It might be better to consider separating pure rule *syntax* from *semantics* further (e.g., small evaluator combinators) if later want user-defined rule macros or conditional rules.
+
+---
+
+### 3. Simulation via Immutability (Safety Check)
+
+**What it is (implementation):**
+To decide whether a candidate move is legal, the engine constructs a new board state (using `Map` operations) and checks king safety on that simulated board:
+
+```haskell
+tempBoard = Map.insert toPos piece (Map.delete fromPos board)
+not (isKingInCheck rules size tempBoard player)
+```
+
+**Why:**
+Immutability makes simulation trivial and safe, there is no need to mutate and then undo state. The original board is never corrupted even when simulations fail or throw.
+
+**What we got:**
+
+* Correctness: no rollback bugs or leftover side effects from simulations.
+* Easier testing: pure functions operating on `Board` values are easy to test in isolation.
+
+**Limitations:**
+
+* Pure snapshots can be slower than carefully optimized in-place mutation for very high volumes of simulations.
+
+**Future development:**
+
+* If performance becomes an issue, profile hotspots and memoization or incremental board updates (e.g., Zobrist hashing / move application that reuses structure).
+
+---
+
+### 4. Lazy Evaluation for Optimization (Checkmate / Stalemate)
+
+**What it is (implementation):**
+The `hasLegalMoves` function relies on `any` and lazy evaluation to short-circuit search:
+
+```haskell
+hasLegalMoves :: RuleMap -> BoardSize -> Board -> Color -> Bool
+hasLegalMoves rules size board player =
+  let
+    myPieces = filter (\(_, p) -> pColor p == player) (Map.toList board)
+    
+    hasMoves (pos, _) = not (null (getSafeMoves rules size board pos))
+  in
+    any hasMoves myPieces
+```
+
+**Why:**
+`getSafeMoves` can be expensive (simulate + validate moves). Haskell’s lazy semantics ensure `any` stops as soon as one piece has a legal move, so many expensive computations are skipped implicitly.
+
+**What we got:**
+
+* The performance of an early-exit loop without manual `break` logic.
+* Cleaner, declarative code that still performs well in practice.
+
+**Limitations / caveats:**
+
+* Laziness can mask performance problems if thunks accumulate.
+* Dependence on evaluation order.
+
+---
+
+### 5. Type-Driven Design (Make illegal states unrepresentable)
+
+**What it is (implementation):**
+Core domain values are properly typed (e.g., `Color = White | Black`, `Position = Pos Int Int`) and raw strings/numbers are parsed once at the I/O boundary (`FromJSON` instances).
+
+**Why:**
+By converting untrusted text into strongly typed values at the boundary, the engine’s core functions operate on valid, well-formed data only. This reduces runtime error paths.
+
+**What we got:**
+
+* Fewer runtime checks inside the engine.
+* Safer, clearer APIs between modules.
+
+**Limitations:**
+
+* Parser errors are located at the boundary and must be handled properly.
+* The `FromJSON` logic must be maintained if the DSL extends.
+
+**Future developments:**
+Add property tests (QuickCheck) that generate random valid rulesets and assert invariants (e.g., no overlapping formation squares, exactly one King).
 
 ---
 
